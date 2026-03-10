@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>docchat</title>
+  <link rel="stylesheet" href="/public/css/styles.css">
+</head>
+<body>
+  <!-- Mobile sidebar toggle -->
+  <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+
+  <div class="app-layout">
+    <!-- Left Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">&#9670;</span>
+          <div>
+            <div class="logo-text">docchat</div>
+            <div class="logo-sub" id="repo-name">loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-stats" id="sidebar-stats"></div>
+
+      <div class="sidebar-section">
+        <div class="section-label">Explorations</div>
+        <button class="explore-btn" id="explore-btn" onclick="triggerExplore()">
+          &#9654; Run Exploration
+        </button>
+        <div id="exploration-list"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">Documentation</div>
+        <div id="doc-tree"></div>
+      </div>
+    </nav>
+
+    <!-- Center Content Panel -->
+    <main class="content-panel" id="content-panel">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">&#9670;</div>
+        <h1>docchat</h1>
+        <p>Drop-in codebase understanding tool</p>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" onclick="triggerExplore()">Run Exploration</button>
+          <p class="hint">Or select a document from the sidebar to start reading</p>
+        </div>
+      </div>
+      <div class="content-view" id="content-view" style="display:none">
+        <div class="content-header">
+          <span class="content-path" id="content-path"></span>
+        </div>
+        <div class="content-body" id="content-body"></div>
+      </div>
+    </main>
+
+    <!-- Right Chat Panel -->
+    <aside class="chat-panel" id="chat-panel">
+      <div class="chat-header">
+        <span>Chat</span>
+        <span class="chat-model">haiku</span>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-message assistant">
+          <div class="message-content">Hi! I know this codebase. Ask me anything about the architecture, code patterns, or how things work.</div>
+        </div>
+      </div>
+      <div class="chat-input-bar">
+        <textarea class="chat-input" id="chat-input" placeholder="Ask about this codebase..." rows="1"></textarea>
+        <button class="chat-send" id="chat-send">&#8593;</button>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/public/js/markdown.js"></script>
+  <script src="/public/js/app.js"></script>
+  <script src="/public/js/chat.js"></script>
+  <script src="/public/js/explore.js"></script>
+</body>
+</html>
