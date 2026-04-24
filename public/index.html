@@ -18,6 +18,10 @@
     </div>
     <div class="ticker" id="top-metrics"></div>
     <div class="topbar-actions">
+      <button class="tool-button" id="toggle-left" type="button" title="Toggle sources" aria-pressed="false">Sources</button>
+      <button class="tool-button" id="toggle-analysis" type="button" title="Toggle atlas pane" aria-pressed="false">Atlas Pane</button>
+      <button class="tool-button" id="toggle-chat" type="button" title="Toggle guide" aria-pressed="false">Guide</button>
+      <button class="tool-button" id="toggle-reader-focus" type="button" title="Focus reader" aria-pressed="false">Focus</button>
       <button class="tool-button" id="rebuild-atlas" type="button">↻ Atlas</button>
       <button class="tool-button" id="run-audit-top" type="button">Audit</button>
     </div>
@@ -36,6 +40,8 @@
         <div class="doc-list" id="doc-list"></div>
       </section>
     </aside>
+
+    <div class="splitter splitter-left" id="splitter-left" role="separator" aria-orientation="vertical" title="Resize sources"></div>
 
     <main class="workspace">
       <nav class="workspace-tabs" id="workspace-tabs" aria-label="Workspace views">
@@ -58,6 +64,8 @@
           <div class="pane-body" id="analysis-body"></div>
         </div>
 
+        <div class="splitter splitter-reader" id="splitter-reader" role="separator" aria-orientation="vertical" title="Resize reader"></div>
+
         <article class="reader-pane">
           <div class="reader-header">
             <div>
@@ -65,6 +73,7 @@
               <div class="reader-meta" id="reader-meta"></div>
             </div>
             <div class="reader-actions">
+              <button class="icon-button" id="toggle-reader-focus-reader" type="button" aria-label="Focus reader" title="Focus reader">⛶</button>
               <button class="icon-button" id="save-draft" type="button" aria-label="Save draft" title="Save draft" hidden>▣</button>
             </div>
           </div>
@@ -74,6 +83,8 @@
         </article>
       </section>
     </main>
+
+    <div class="splitter splitter-chat" id="splitter-chat" role="separator" aria-orientation="vertical" title="Resize guide"></div>
 
     <aside class="chat-rail">
       <div class="chat-header">

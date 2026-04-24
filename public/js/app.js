@@ -1,6 +1,8 @@
 (function() {
   'use strict';
 
+  var LAYOUT_KEY = 'docchat-layout-v2';
+
   var state = {
     info: null,
     atlas: null,
@@ -13,6 +15,7 @@
     selectedTopicId: null,
     pinnedPath: null,
     loading: {},
+    layout: loadLayoutState(),
   };
 
   var els = {};
@@ -20,6 +23,7 @@
   function init() {
     cacheEls();
     bindEvents();
+    applyLayout();
     loadInitialData();
   }
 
@@ -30,7 +34,9 @@
       'analysis-body', 'reader-path', 'reader-meta', 'content-body',
       'save-draft', 'pinned-path', 'compare-panel', 'chat-provider',
       'action-log', 'rail-toggle', 'atlas-rail', 'rebuild-atlas',
-      'run-audit-top',
+      'run-audit-top', 'toggle-left', 'toggle-analysis', 'toggle-chat',
+      'toggle-reader-focus', 'toggle-reader-focus-reader', 'splitter-left',
+      'splitter-reader', 'splitter-chat',
     ].forEach(function(id) {
       els[toCamel(id)] = document.getElementById(id);
     });
@@ -44,6 +50,11 @@
     els.rebuildAtlas.addEventListener('click', rebuildAtlas);
     els.runAuditTop.addEventListener('click', runAudit);
     els.saveDraft.addEventListener('click', saveCurrentDraft);
+    els.toggleLeft.addEventListener('click', function() { toggleLayout('leftCollapsed'); });
+    els.toggleAnalysis.addEventListener('click', function() { toggleLayout('analysisCollapsed'); });
+    els.toggleChat.addEventListener('click', function() { toggleLayout('chatCollapsed'); });
+    els.toggleReaderFocus.addEventListener('click', function() { toggleLayout('readerFocus'); });
+    els.toggleReaderFocusReader.addEventListener('click', function() { toggleLayout('readerFocus'); });
 
     els.docSearch.addEventListener('input', renderDocList);
     els.docList.addEventListener('click', function(event) {
@@ -53,11 +64,12 @@
 
     els.workspaceTabs.addEventListener('click', function(event) {
       var tab = event.target.closest('[data-tab]');
-      if (tab) setTab(tab.dataset.tab);
+      if (tab) setTab(tab.dataset.tab, { revealPane: true });
     });
 
     els.paneActions.addEventListener('click', handleCommandEvent);
     els.analysisBody.addEventListener('click', handleCommandEvent);
+    els.pinnedPath.addEventListener('click', handleCommandEvent);
 
     els.contentBody.addEventListener('click', function(event) {
       var link = event.target.closest('a[data-local-doc-link]');
@@ -65,11 +77,17 @@
       event.preventDefault();
       openLocalDocLink(link.getAttribute('href'));
     });
+
+    bindSplitters();
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && state.layout.readerFocus) toggleLayout('readerFocus', false);
+    });
   }
 
   function handleCommandEvent(event) {
       var target = event.target.closest('[data-command]');
       if (!target) return;
+      event.preventDefault();
       var command = target.dataset.command;
       if (command === 'draft') draftSynthesis(target.dataset.type, target.dataset.topicId, target.dataset.pathId);
       if (command === 'save-draft') saveCurrentDraft();
@@ -80,6 +98,99 @@
       if (command === 'run-audit') runAudit();
       if (command === 'generate-media') generateMedia();
       if (command === 'promote-media') promoteMedia(target.dataset.jobId);
+      if (command === 'toggle-pinned') togglePinnedPath();
+      if (command === 'clear-pinned') clearPinnedPath();
+  }
+
+  function loadLayoutState() {
+    var defaults = {
+      leftCollapsed: false,
+      chatCollapsed: false,
+      analysisCollapsed: window.innerWidth < 1280,
+      readerFocus: false,
+      pinnedCollapsed: true,
+      railWidth: 286,
+      chatWidth: 382,
+      analysisWidth: null,
+    };
+    try {
+      var saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
+      return Object.assign(defaults, saved, { readerFocus: false });
+    } catch {
+      return defaults;
+    }
+  }
+
+  function saveLayout() {
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(state.layout));
+    } catch {
+      // Layout persistence is a nice-to-have.
+    }
+  }
+
+  function toggleLayout(key, forcedValue) {
+    state.layout[key] = typeof forcedValue === 'boolean' ? forcedValue : !state.layout[key];
+    applyLayout();
+    saveLayout();
+  }
+
+  function applyLayout() {
+    document.body.classList.toggle('left-collapsed', Boolean(state.layout.leftCollapsed));
+    document.body.classList.toggle('chat-collapsed', Boolean(state.layout.chatCollapsed));
+    document.body.classList.toggle('analysis-collapsed', Boolean(state.layout.analysisCollapsed));
+    document.body.classList.toggle('reader-focus', Boolean(state.layout.readerFocus));
+    setCssLength('--rail-width', state.layout.railWidth);
+    setCssLength('--chat-width', state.layout.chatWidth);
+    if (state.layout.analysisWidth) setCssLength('--analysis-width', state.layout.analysisWidth);
+    updateLayoutButtons();
+  }
+
+  function updateLayoutButtons() {
+    if (!els.toggleLeft) return;
+    els.toggleLeft.setAttribute('aria-pressed', String(!state.layout.leftCollapsed));
+    els.toggleAnalysis.setAttribute('aria-pressed', String(!state.layout.analysisCollapsed));
+    els.toggleChat.setAttribute('aria-pressed', String(!state.layout.chatCollapsed));
+    els.toggleReaderFocus.setAttribute('aria-pressed', String(Boolean(state.layout.readerFocus)));
+    els.toggleReaderFocus.textContent = state.layout.readerFocus ? 'Exit Focus' : 'Focus';
+    els.toggleReaderFocusReader.textContent = state.layout.readerFocus ? '×' : '⛶';
+    els.toggleReaderFocusReader.title = state.layout.readerFocus ? 'Exit focus' : 'Focus reader';
+  }
+
+  function bindSplitters() {
+    bindSplitter(els.splitterLeft, function(event) {
+      state.layout.railWidth = clamp(event.clientX, 210, 480);
+      setCssLength('--rail-width', state.layout.railWidth);
+    });
+    bindSplitter(els.splitterChat, function(event) {
+      state.layout.chatWidth = clamp(window.innerWidth - event.clientX, 300, 580);
+      setCssLength('--chat-width', state.layout.chatWidth);
+    });
+    bindSplitter(els.splitterReader, function(event) {
+      var grid = document.querySelector('.workspace-grid');
+      var rect = grid.getBoundingClientRect();
+      state.layout.analysisWidth = clamp(event.clientX - rect.left, 240, Math.max(260, rect.width - 340));
+      setCssLength('--analysis-width', state.layout.analysisWidth);
+    });
+  }
+
+  function bindSplitter(splitter, onMove) {
+    if (!splitter) return;
+    splitter.addEventListener('pointerdown', function(event) {
+      if (window.innerWidth <= 920 || state.layout.readerFocus) return;
+      event.preventDefault();
+      document.body.classList.add('is-resizing');
+      function move(moveEvent) {
+        onMove(moveEvent);
+      }
+      function up() {
+        document.body.classList.remove('is-resizing');
+        document.removeEventListener('pointermove', move);
+        saveLayout();
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up, { once: true });
+    });
   }
 
   async function loadInitialData() {
@@ -148,7 +259,7 @@
             '<span class="doc-title">' + esc(doc.title || doc.path) + '</span>',
             '<span class="doc-path">' + esc(doc.path) + '</span>',
           '</span>',
-          '<span class="role-chip">' + esc(doc.role) + '</span>',
+          '<span class="role-chip role-' + attr(doc.role) + '">' + esc(doc.role) + '</span>',
         '</button>',
       ].join('');
     }).join('');
@@ -417,6 +528,37 @@
     els.contentBody.innerHTML = renderMarkdownSafe(markdown);
   }
 
+  function showTopicPage(topicId) {
+    var topic = state.atlas.topics.find(function(item) { return item.id === topicId; });
+    if (!topic) return;
+    var docs = topic.docPaths
+      .map(function(path) { return state.docs.find(function(doc) { return doc.path === path; }); })
+      .filter(Boolean);
+    var markdown = [
+      '# ' + topic.label,
+      '',
+      topic.summary,
+      '',
+      '## Source Map',
+      '',
+      docs.map(function(doc) {
+        return '- [' + doc.title + '](' + doc.path + ') - ' + doc.role + '; ' + trimText(doc.preview || '', 140);
+      }).join('\n'),
+      '',
+      '## Keywords',
+      '',
+      topic.keywords.map(function(keyword) { return '- `' + keyword + '`'; }).join('\n'),
+    ].join('\n');
+    state.currentDraft = null;
+    state.activeDoc = null;
+    els.saveDraft.hidden = true;
+    els.comparePanel.hidden = true;
+    els.readerPath.textContent = topic.label + ' Topic';
+    els.readerMeta.textContent = topic.docPaths.length + ' docs · source map';
+    els.contentBody.innerHTML = renderMarkdownSafe(markdown);
+    renderDocList();
+  }
+
   async function draftSynthesis(type, topicId, pathId) {
     try {
       var draft = await apiJson('/api/synthesis/draft', {
@@ -514,14 +656,22 @@
     }
   }
 
-  function setTab(tab) {
+  function setTab(tab, options) {
+    options = options || {};
     state.activeTab = tab;
+    if (options.revealPane && window.innerWidth > 920) {
+      state.layout.analysisCollapsed = false;
+      state.layout.readerFocus = false;
+      applyLayout();
+      saveLayout();
+    }
     renderAnalysis();
   }
 
   function showTopic(topicId) {
     state.selectedTopicId = topicId;
     setTab('topics');
+    showTopicPage(topicId);
   }
 
   function pinReadingPath(pathIdOrPath) {
@@ -531,8 +681,18 @@
     if (!path) return;
     state.pinnedPath = path;
     els.pinnedPath.hidden = false;
+    els.pinnedPath.className = 'pinned-path' + (state.layout.pinnedCollapsed ? ' is-collapsed' : '');
     els.pinnedPath.innerHTML = [
-      '<div class="path-name">' + esc(path.title) + '</div>',
+      '<div class="pinned-path-head">',
+        '<div>',
+          '<div class="path-name">' + esc(path.title) + '</div>',
+          '<div class="path-meta">' + esc(path.audience || '') + '</div>',
+        '</div>',
+        '<div class="pinned-actions">',
+          '<button class="icon-button" type="button" data-command="toggle-pinned" aria-label="Collapse reading path" title="Collapse reading path">' + (state.layout.pinnedCollapsed ? '+' : '−') + '</button>',
+          '<button class="icon-button" type="button" data-command="clear-pinned" aria-label="Hide reading path" title="Hide reading path">×</button>',
+        '</div>',
+      '</div>',
       '<div class="path-items">',
         path.items.map(function(item, index) {
           return '<div class="path-item"><div class="path-index">' + (index + 1) + '</div><div><button class="doc-row" type="button" data-doc-path="' + attr(item.path) + '"><span><span class="path-source">' + esc(item.path) + '</span><span class="path-reason">' + esc(item.reason || '') + '</span></span></button></div></div>';
@@ -542,6 +702,18 @@
     els.pinnedPath.querySelectorAll('[data-doc-path]').forEach(function(button) {
       button.addEventListener('click', function() { loadDoc(button.dataset.docPath); });
     });
+  }
+
+  function togglePinnedPath() {
+    state.layout.pinnedCollapsed = !state.layout.pinnedCollapsed;
+    saveLayout();
+    if (state.pinnedPath) pinReadingPath(state.pinnedPath);
+  }
+
+  function clearPinnedPath() {
+    state.pinnedPath = null;
+    els.pinnedPath.hidden = true;
+    els.pinnedPath.innerHTML = '';
   }
 
   function applyAction(action) {
@@ -672,6 +844,15 @@
     return String(value).replace(/"/g, '\\"');
   }
 
+  function setCssLength(name, value) {
+    if (!value) return;
+    document.documentElement.style.setProperty(name, typeof value === 'number' ? value + 'px' : String(value));
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(Math.round(value), min), max);
+  }
+
   function toCamel(id) {
     return id.replace(/-([a-z])/g, function(_, ch) { return ch.toUpperCase(); });
   }
@@ -688,6 +869,11 @@
     } catch {
       return value;
     }
+  }
+
+  function trimText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.slice(0, maxLength - 3).trim() + '...' : text;
   }
 
   function slugify(text) {
