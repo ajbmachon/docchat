@@ -6,7 +6,7 @@ const fixtureRoot = join(import.meta.dir, "..", "fixtures", "docs");
 
 describe("DocChat API", () => {
   test("serves atlas and docs from fixture corpus", async () => {
-    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false });
+    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false, loadEnvFiles: false });
     const atlasRes = await app.fetch(new Request("http://docchat.test/api/atlas"));
     expect(atlasRes.status).toBe(200);
     const atlas = await atlasRes.json();
@@ -19,7 +19,7 @@ describe("DocChat API", () => {
   });
 
   test("streams validated chat actions over SSE", async () => {
-    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false });
+    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false, loadEnvFiles: false });
     const res = await app.fetch(new Request("http://docchat.test/api/chat", {
       method: "POST",
       body: JSON.stringify({ prompt: "Compare the RPC docs" }),
@@ -33,7 +33,7 @@ describe("DocChat API", () => {
   });
 
   test("drafts and saves synthesis artifacts", async () => {
-    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false });
+    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false, loadEnvFiles: false });
     const draftRes = await app.fetch(new Request("http://docchat.test/api/synthesis/draft", {
       method: "POST",
       body: JSON.stringify({ type: "start-here" }),
@@ -55,7 +55,7 @@ describe("DocChat API", () => {
   test("runs audits and reports media unavailable state without an API key", async () => {
     const previousKey = process.env.GOOGLE_API_KEY;
     delete process.env.GOOGLE_API_KEY;
-    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false });
+    const app = await createDocChatApp({ targetDir: fixtureRoot, enableAssistantCli: false, loadEnvFiles: false });
 
     const auditRes = await app.fetch(new Request("http://docchat.test/api/audit/run", { method: "POST" }));
     expect(auditRes.status).toBe(201);

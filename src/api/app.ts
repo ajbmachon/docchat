@@ -25,6 +25,7 @@ export interface DocChatAppOptions {
   targetDir: string;
   publicDir?: string;
   enableAssistantCli?: boolean;
+  loadEnvFiles?: boolean;
 }
 
 export interface DocChatApp {
@@ -38,7 +39,7 @@ export async function createDocChatApp(options: DocChatAppOptions): Promise<DocC
   const targetDir = resolve(options.targetDir);
   const publicDir = resolve(options.publicDir || join(import.meta.dir, "..", "..", "public"));
   const artifactStore = new ArtifactStore(targetDir);
-  const mediaService = new MediaService({ targetDir });
+  const mediaService = new MediaService({ targetDir, loadEnvFiles: options.loadEnvFiles });
   const sessionMap = new Map<string, string>();
   let atlas = await buildAndCacheAtlas(targetDir, artifactStore);
 

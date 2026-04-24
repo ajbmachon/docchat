@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import type { MediaJob } from "./types";
 import { assertInside, safeFilename } from "../infra/artifact-store";
@@ -6,6 +7,7 @@ import { assertInside, safeFilename } from "../infra/artifact-store";
 export interface MediaServiceOptions {
   targetDir: string;
   skillGeneratePath?: string;
+  loadEnvFiles?: boolean;
 }
 
 export class MediaService {
@@ -16,6 +18,7 @@ export class MediaService {
   constructor(opts: MediaServiceOptions) {
     this.targetDir = opts.targetDir;
     this.skillGeneratePath = opts.skillGeneratePath || `${process.env.HOME}/.codex/skills/media/Art/Tools/Generate.ts`;
+    if (opts.loadEnvFiles !== false) loadMediaEnvFiles();
   }
 
   availability() {
@@ -99,5 +102,37 @@ export class MediaService {
     job.promotedPath = promotedPath;
     job.status = "approved";
     return job;
+  }
+}
+
+function loadMediaEnvFiles(): void {
+  const home = process.env.HOME || "";
+  const envPaths = [
+    `${process.env.CODEX_HOME || `${home}/.codex`}/.env`,
+    `${process.env.PAI_DIR || `${home}/.claude`}/.env`,
+  ];
+
+  for (const path of envPaths) {
+    try {
+      if (!existsSync(path)) continue;
+      applyEnvContent(readFileSync(path, "utf8"));
+    } catch {
+      // Missing or unreadable env files should not break DocChat startup.
+    }
+  }
+}
+
+function applyEnvContent(content: string): void {
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = value;
   }
 }
