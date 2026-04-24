@@ -33,15 +33,25 @@
 
     // Images: ![alt](url)
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, url) {
-      return '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(alt) + '">';
+      var trimmed = String(url).trim();
+      var isAllowed = /^https?:\/\//i.test(trimmed) || !/^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+      return isAllowed ? '<img src="' + escapeHtml(trimmed) + '" alt="' + escapeHtml(alt) + '">' : '';
     });
 
     // Links: [text](url)
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, linkText, url) {
-      var escaped = escapeHtml(url);
-      var isExternal = /^https?:\/\//.test(url);
+      var trimmed = String(url).trim();
+      var escaped = escapeHtml(trimmed);
+      var isExternal = /^https?:\/\//i.test(trimmed);
+      var isMail = /^mailto:/i.test(trimmed);
+      var isHash = /^#/.test(trimmed);
+      var isLocal = !/^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+      if (!isExternal && !isMail && !isHash && !isLocal) {
+        return '<a href="#">' + linkText + '</a>';
+      }
       var target = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';
-      return '<a href="' + escaped + '"' + target + '>' + linkText + '</a>';
+      var local = isLocal && !isHash ? ' data-local-doc-link="true"' : '';
+      return '<a href="' + escaped + '"' + target + local + '>' + linkText + '</a>';
     });
 
     // Bold: **text** or __text__
@@ -68,6 +78,9 @@
 
     // Normalize line endings
     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    text = text.replace(/<!--[\s\S]*?-->/g, '');
+    text = text.replace(/<p\s+align=["']center["'][\s\S]*?<\/p>/gi, '');
+    text = text.replace(/<br\s*\/?>/gi, '\n');
 
     // Extract fenced code blocks first to protect them from processing
     var codeBlocks = [];
@@ -108,8 +121,10 @@
       var headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
       if (headingMatch) {
         var level = headingMatch[1].length;
-        var headingText = processInline(escapeHtml(headingMatch[2]));
-        html.push('<h' + level + '>' + headingText + '</h' + level + '>');
+        var rawHeading = headingMatch[2].replace(/\s+#*$/, '');
+        var headingText = processInline(escapeHtml(rawHeading));
+        var id = slugify(rawHeading);
+        html.push('<h' + level + ' id="' + id + '" data-heading-text="' + escapeHtml(rawHeading) + '">' + headingText + '</h' + level + '>');
         i++;
         continue;
       }
@@ -233,6 +248,16 @@
 
     out += '</tbody></table>';
     return out;
+  }
+
+  function slugify(text) {
+    return String(text)
+      .toLowerCase()
+      .replace(/<[^>]+>/g, '')
+      .replace(/[`*_~]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80) || 'section';
   }
 
   // Expose globally

@@ -3,76 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>docchat</title>
+  <title>DocChat</title>
   <link rel="stylesheet" href="/public/css/styles.css">
 </head>
 <body>
-  <!-- Mobile sidebar toggle -->
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+  <header class="topbar">
+    <button class="icon-button mobile-only" id="rail-toggle" type="button" aria-label="Toggle atlas rail">☰</button>
+    <div class="brand-lockup">
+      <div class="brand-mark">DC</div>
+      <div>
+        <div class="brand-name">DocChat</div>
+        <div class="brand-sub" id="repo-name">loading</div>
+      </div>
+    </div>
+    <div class="ticker" id="top-metrics"></div>
+    <div class="topbar-actions">
+      <button class="tool-button" id="rebuild-atlas" type="button">↻ Atlas</button>
+      <button class="tool-button" id="run-audit-top" type="button">Audit</button>
+    </div>
+  </header>
 
-  <div class="app-layout">
-    <!-- Left Sidebar -->
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-icon">&#9670;</span>
-          <div>
-            <div class="logo-text">docchat</div>
-            <div class="logo-sub" id="repo-name">loading...</div>
+  <div class="cockpit">
+    <aside class="atlas-rail" id="atlas-rail">
+      <section class="rail-section">
+        <div class="rail-label">Corpus</div>
+        <div class="rail-metrics" id="rail-metrics"></div>
+      </section>
+
+      <section class="rail-section">
+        <div class="rail-label">Source Filter</div>
+        <input class="search-input" id="doc-search" type="search" placeholder="Filter markdown">
+        <div class="doc-list" id="doc-list"></div>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <nav class="workspace-tabs" id="workspace-tabs" aria-label="Workspace views">
+        <button class="tab-button active" type="button" data-tab="atlas">Atlas</button>
+        <button class="tab-button" type="button" data-tab="topics">Topics</button>
+        <button class="tab-button" type="button" data-tab="paths">Paths</button>
+        <button class="tab-button" type="button" data-tab="audit">Audit</button>
+        <button class="tab-button" type="button" data-tab="media">Media</button>
+      </nav>
+
+      <section class="workspace-grid">
+        <div class="analysis-pane">
+          <div class="pane-header">
+            <div>
+              <div class="eyebrow" id="pane-eyebrow">Atlas</div>
+              <h1 id="pane-title">Documentation Atlas</h1>
+            </div>
+            <div class="pane-actions" id="pane-actions"></div>
           </div>
+          <div class="pane-body" id="analysis-body"></div>
         </div>
-      </div>
 
-      <div class="sidebar-stats" id="sidebar-stats"></div>
-
-      <div class="sidebar-section">
-        <div class="section-label">Explorations</div>
-        <button class="explore-btn" id="explore-btn" onclick="triggerExplore()">
-          &#9654; Run Exploration
-        </button>
-        <div id="exploration-list"></div>
-      </div>
-
-      <div class="sidebar-section">
-        <div class="section-label">Documentation</div>
-        <div id="doc-tree"></div>
-      </div>
-    </nav>
-
-    <!-- Center Content Panel -->
-    <main class="content-panel" id="content-panel">
-      <div class="welcome" id="welcome">
-        <div class="welcome-icon">&#9670;</div>
-        <h1>docchat</h1>
-        <p>Drop-in codebase understanding tool</p>
-        <div class="welcome-actions">
-          <button class="btn btn-primary" onclick="triggerExplore()">Run Exploration</button>
-          <p class="hint">Or select a document from the sidebar to start reading</p>
-        </div>
-      </div>
-      <div class="content-view" id="content-view" style="display:none">
-        <div class="content-header">
-          <span class="content-path" id="content-path"></span>
-        </div>
-        <div class="content-body" id="content-body"></div>
-      </div>
+        <article class="reader-pane">
+          <div class="reader-header">
+            <div>
+              <div class="reader-path" id="reader-path">No document selected</div>
+              <div class="reader-meta" id="reader-meta"></div>
+            </div>
+            <div class="reader-actions">
+              <button class="icon-button" id="save-draft" type="button" aria-label="Save draft" title="Save draft" hidden>▣</button>
+            </div>
+          </div>
+          <div class="pinned-path" id="pinned-path" hidden></div>
+          <div class="compare-panel" id="compare-panel" hidden></div>
+          <div class="content-body" id="content-body"></div>
+        </article>
+      </section>
     </main>
 
-    <!-- Right Chat Panel -->
-    <aside class="chat-panel" id="chat-panel">
+    <aside class="chat-rail">
       <div class="chat-header">
-        <span>Chat</span>
-        <span class="chat-model">haiku</span>
+        <div>
+          <div class="rail-label">Guide</div>
+          <div class="chat-provider" id="chat-provider">local-guide</div>
+        </div>
+        <button class="icon-button" id="clear-chat" type="button" aria-label="Clear chat">×</button>
       </div>
       <div class="chat-messages" id="chat-messages">
         <div class="chat-message assistant">
-          <div class="message-content">Hi! I know this codebase. Ask me anything about the architecture, code patterns, or how things work.</div>
+          <div class="message-content">Drop a question into the atlas. I can open docs, compare overlaps, pin paths, and draft synthesis pages.</div>
         </div>
       </div>
-      <div class="chat-input-bar">
-        <textarea class="chat-input" id="chat-input" placeholder="Ask about this codebase..." rows="1"></textarea>
-        <button class="chat-send" id="chat-send">&#8593;</button>
-      </div>
+      <div class="action-log" id="action-log"></div>
+      <form class="chat-input-bar" id="chat-form">
+        <textarea class="chat-input" id="chat-input" placeholder="Ask about the docs" rows="1"></textarea>
+        <button class="chat-send" id="chat-send" type="submit" aria-label="Send">↑</button>
+      </form>
     </aside>
   </div>
 

@@ -1,155 +1,146 @@
-/**
- * docchat — Chat Panel with SSE Streaming
- *
- * Handles: message sending, SSE stream parsing for token/done/error events,
- * auto-resizing textarea, keyboard shortcuts, and streaming cursor display.
- */
 (function() {
   'use strict';
 
-  var sessionId = crypto.randomUUID();
+  var sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  var form = document.getElementById('chat-form');
   var input = document.getElementById('chat-input');
   var sendBtn = document.getElementById('chat-send');
   var messages = document.getElementById('chat-messages');
+  var clearBtn = document.getElementById('clear-chat');
   var streaming = false;
 
-  // ─── Utilities ─────────────────────────────────
-
-  function escHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function addMessage(role, html) {
-    var div = document.createElement('div');
-    div.className = 'chat-message ' + role;
-    div.innerHTML = '<div class="message-content">' + html + '</div>';
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
-    return div;
-  }
-
-  // ─── Auto-resize Textarea ─────────────────────
-
-  input.addEventListener('input', function() {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-  });
-
-  // Enter to send, Shift+Enter for newline
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  input.addEventListener('input', resizeInput);
+  input.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    sendMessage();
+  });
 
-  // ─── Send Message with SSE Streaming ──────────
+  clearBtn.addEventListener('click', function() {
+    messages.innerHTML = '<div class="chat-message assistant"><div class="message-content">Fresh thread. The atlas stays loaded.</div></div>';
+  });
 
   async function sendMessage() {
-    var question = input.value.trim();
-    if (!question || streaming) return;
+    var prompt = input.value.trim();
+    if (!prompt || streaming) return;
 
     streaming = true;
     sendBtn.disabled = true;
     input.value = '';
-    input.style.height = 'auto';
+    resizeInput();
+    addMessage('user', esc(prompt));
 
-    // Add user message
-    addMessage('user', escHtml(question));
-
-    // Create assistant message with cursor
-    var assistantDiv = addMessage('assistant', '');
-    var contentEl = assistantDiv.querySelector('.message-content');
+    var assistant = addMessage('assistant', '');
+    var contentEl = assistant.querySelector('.message-content');
     var cursor = document.createElement('span');
     cursor.className = 'chat-cursor';
     contentEl.appendChild(cursor);
-
     var fullText = '';
 
     try {
-      var resp = await fetch('/api/ask', {
+      var resp = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: question, sessionId: sessionId }),
+        body: JSON.stringify({ prompt: prompt, sessionId: sessionId }),
       });
-
-      if (!resp.ok) {
-        throw new Error('Server returned ' + resp.status);
-      }
+      if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
 
       var reader = resp.body.getReader();
       var decoder = new TextDecoder();
       var buffer = '';
-      var currentEvent = '';
 
       while (true) {
-        var result = await reader.read();
-        if (result.done) break;
-
-        buffer += decoder.decode(result.value, { stream: true });
-        var lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i];
-
-          if (line.startsWith('event:')) {
-            currentEvent = line.slice(6).trim();
-          } else if (line.startsWith('data:')) {
-            var data;
-            try {
-              data = JSON.parse(line.slice(5).trim());
-            } catch (e) {
-              continue;
-            }
-
-            if (currentEvent === 'token' && data.text) {
-              fullText += data.text;
-              cursor.remove();
-              contentEl.innerHTML = window.renderMarkdown
-                ? window.renderMarkdown(fullText)
-                : escHtml(fullText);
-              contentEl.appendChild(cursor);
-              messages.scrollTop = messages.scrollHeight;
-            } else if (currentEvent === 'done') {
-              var finalText = data.fullText || fullText;
-              cursor.remove();
-              contentEl.innerHTML = window.renderMarkdown
-                ? window.renderMarkdown(finalText)
-                : escHtml(finalText);
-              messages.scrollTop = messages.scrollHeight;
-            } else if (currentEvent === 'error') {
-              cursor.remove();
-              contentEl.innerHTML = '<span class="error-text">' +
-                escHtml(data.message || 'An error occurred') + '</span>';
-            }
-            currentEvent = '';
-          }
-        }
+        var read = await reader.read();
+        if (read.done) break;
+        buffer += decoder.decode(read.value, { stream: true });
+        var parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (var i = 0; i < parts.length; i++) handleSseBlock(parts[i]);
       }
-
-      // If stream ended without a done event, finalize with what we have
-      if (fullText && contentEl.querySelector('.chat-cursor')) {
-        cursor.remove();
-        contentEl.innerHTML = window.renderMarkdown
-          ? window.renderMarkdown(fullText)
-          : escHtml(fullText);
-      }
-
+      if (buffer.trim()) handleSseBlock(buffer);
     } catch (err) {
       cursor.remove();
-      contentEl.innerHTML = '<span class="error-text">' +
-        escHtml('Failed to get response: ' + String(err)) + '</span>';
+      contentEl.innerHTML = '<span class="error-text">' + esc(String(err)) + '</span>';
     } finally {
       streaming = false;
       sendBtn.disabled = false;
       input.focus();
     }
+
+    function handleSseBlock(block) {
+      var event = 'message';
+      var data = {};
+      block.split('\n').forEach(function(line) {
+        if (line.indexOf('event:') === 0) event = line.slice(6).trim();
+        if (line.indexOf('data:') === 0) {
+          try { data = JSON.parse(line.slice(5).trim()); } catch {}
+        }
+      });
+
+      if (event === 'meta') {
+        var provider = document.getElementById('chat-provider');
+        if (provider && data.provider) provider.textContent = data.provider;
+      }
+
+      if (event === 'token') {
+        fullText += data.text || '';
+        cursor.remove();
+        contentEl.innerHTML = renderText(fullText);
+        contentEl.appendChild(cursor);
+        scrollMessages();
+      }
+
+      if (event === 'action') {
+        window.DocChat?.applyAction(data);
+      }
+
+      if (event === 'done') {
+        cursor.remove();
+        contentEl.innerHTML = renderText(data.fullText || fullText);
+        scrollMessages();
+      }
+
+      if (event === 'error') {
+        cursor.remove();
+        contentEl.innerHTML = '<span class="error-text">' + esc(data.error || data.message || 'Chat failed') + '</span>';
+      }
+    }
+  }
+
+  function addMessage(role, html) {
+    var node = document.createElement('div');
+    node.className = 'chat-message ' + role;
+    node.innerHTML = '<div class="message-content">' + html + '</div>';
+    messages.appendChild(node);
+    scrollMessages();
+    return node;
+  }
+
+  function resizeInput() {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 130) + 'px';
+  }
+
+  function scrollMessages() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function renderText(text) {
+    return window.renderMarkdown ? window.renderMarkdown(text || '') : esc(text || '');
+  }
+
+  function esc(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 })();

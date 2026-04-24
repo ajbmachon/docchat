@@ -1,0 +1,10 @@
+{
+  "name": "docchat",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "check": "bun test && bun build server.ts --target=bun --outfile=/tmp/docchat-server-check.js"
+  }
+}
